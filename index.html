@@ -22,6 +22,68 @@ input,textarea,select{font-family:inherit}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:99px}
 
+/* DOCS — Google Docs style */
+#docs-view { padding: 20px; height: 100%; overflow: auto; background: var(--surface2); }
+
+.doc-editor-wrap {
+  max-width: 816px;
+  margin: 0 auto;
+  background: var(--surface);
+  border-radius: 0;
+  box-shadow: 0 1px 3px rgba(0,0,0,.3), 0 8px 32px rgba(0,0,0,.25);
+}
+.doc-editor-header {
+  position: sticky;
+  top: -20px;
+  z-index: 10;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.doc-editor-title {
+  flex: 1;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 600;
+  outline: none;
+  font-family: inherit;
+  padding: 2px 4px;
+  border-radius: 0;
+  transition: border-color .15s;
+}
+.doc-editor-title:focus { border-bottom-color: var(--accent); }
+
+/* Page padding inside Quill */
+.ql-editor {
+  min-height: 1000px;
+  padding: 56px 72px !important;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+/* Toolbar sticks under header */
+.ql-toolbar.ql-snow {
+  position: sticky;
+  top: 29px; /* adjust if header height changes */
+  z-index: 9;
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+}
+.ql-container.ql-snow {
+  border-color: var(--border) !important;
+  border-top: none;
+}
+
+/* Docs grid (list view) — keep on plain bg */
+#docs-view > div:first-child { background: transparent; }
+.docs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px,1fr)); gap: 12px; }
+
 /* LAYOUT */
 #app{display:flex;height:100vh;overflow:hidden}
 #sidebar{width:220px;min-width:220px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;transition:width .25s}
@@ -1058,7 +1120,12 @@ function renderDocsList() {
   document.getElementById('docs-list').style.display = '';
   document.getElementById('docs-editor').style.display = 'none';
   document.getElementById('docs-back-btn').style.display = 'none';
-  if (!docs.length) { document.getElementById('docs-list').innerHTML = `<div class="empty-state"><i class="fas fa-file-alt"></i><p>No documents yet.</p></div>`; return; }
+  // Switch view bg back to default
+  document.getElementById('docs-view').style.background = '';
+  if (!docs.length) {
+    document.getElementById('docs-list').innerHTML = `<div class="empty-state"><i class="fas fa-file-alt"></i><p>No documents yet.</p></div>`;
+    return;
+  }
   document.getElementById('docs-list').innerHTML = `<div class="docs-grid">${docs.map(d => `
     <div class="doc-card" onclick="openDoc('${d.id}')">
       <div class="doc-card-icon">📄</div>
@@ -1067,42 +1134,61 @@ function renderDocsList() {
       <button class="doc-card-delete" onclick="event.stopPropagation();deleteDoc('${d.id}')"><i class="fas fa-trash"></i></button>
     </div>`).join('')}</div>`;
 }
+
 function newDoc() {
   const d = { id: uid(), title: 'Untitled Document', content: '', createdAt: Date.now() };
   docs.push(d); saveData('docs', d.id, d); openDoc(d.id);
 }
+
 function openDoc(id) {
   showView('docs'); currentDocId = id;
   const d = docs.find(x => x.id === id); if (!d) return;
   document.getElementById('docs-list').style.display = 'none';
   document.getElementById('docs-editor').style.display = 'block';
   document.getElementById('docs-back-btn').style.display = 'flex';
+  // Switch view to paper-grey bg
+  document.getElementById('docs-view').style.background = 'var(--surface2)';
   document.getElementById('doc-title').value = d.title || '';
   initQuill();
   quillEditor.root.innerHTML = d.content || '';
+  // Scroll to top of content area
+  document.getElementById('content').scrollTo(0, 0);
 }
-function docsBack() { renderDocsList(); currentDocId = null; }
+
+function docsBack() {
+  saveCurrentDoc();
+  document.getElementById('docs-view').style.background = '';
+  renderDocsList();
+  currentDocId = null;
+}
+
 function saveCurrentDoc() {
   if (!currentDocId) return;
   const d = docs.find(x => x.id === currentDocId); if (!d) return;
   d.title = document.getElementById('doc-title').value;
   d.content = quillEditor ? quillEditor.root.innerHTML : '';
-  saveData();
+  saveData('docs', currentDocId, d);
 }
+
 function deleteDoc(id) {
-  docs = docs.filter(d => d.id !== id); saveData('docs', id, null, true); renderDocsList(); toast('Document deleted');
+  docs = docs.filter(d => d.id !== id);
+  saveData('docs', id, null, true);
+  renderDocsList();
+  toast('Document deleted');
 }
+
 function initQuill() {
   if (quillEditor) return;
   quillEditor = new Quill('#editor-container', {
     theme: 'snow',
     modules: {
       toolbar: [
+        [{ 'font': [] }, { 'size': ['small', false, 'large', 'huge'] }],
         [{ 'header': [1, 2, 3, 4, false] }],
         ['bold', 'italic', 'underline', 'strike'],
         [{ 'color': [] }, { 'background': [] }],
         [{ 'align': [] }],
-        [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+        [{ 'list': 'ordered' }, { 'list': 'bullet' }, { 'indent': '-1' }, { 'indent': '+1' }],
         ['link', 'blockquote', 'code-block'],
         ['clean']
       ]
